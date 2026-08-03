@@ -7,11 +7,16 @@ app = Flask(__name__)
 DATABASE = 'diagnosticos.db'
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
+def get_db_connection():
+    conn = sqlite3.connect('diagnosticos.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# 2. Después definimos la función que crea las tablas
 def inicializar_bd():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 1. Tabla de alumnos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alumnos (
             matricula TEXT PRIMARY KEY,
@@ -20,7 +25,6 @@ def inicializar_bd():
         )
     ''')
     
-    # 2. Tabla de diagnósticos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS diagnosticos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +35,6 @@ def inicializar_bd():
         )
     ''')
     
-    # 3. Tabla de historial de medicamentos (la que faltaba)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS historial_medicamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,13 +47,8 @@ def inicializar_bd():
     conn.commit()
     conn.close()
 
-# Asegúrate de que esta línea siga ejecutándose al iniciar
+# 3. Finalmente mandamos a llamar la inicialización ahora que ya existen
 inicializar_bd()
-
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def obtener_resumen_estadisticas():
     conn = get_db_connection()
