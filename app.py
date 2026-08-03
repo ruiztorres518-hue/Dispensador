@@ -17,13 +17,14 @@ def inicializar_bd():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Agregamos fecha_registro TEXT a la tabla alumnos
+    # Agregamos ultimo_diagnostico TEXT a la tabla alumnos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alumnos (
             matricula TEXT PRIMARY KEY,
             nombre TEXT,
             sexo TEXT,
-            fecha_registro TEXT
+            fecha_registro TEXT,
+            ultimo_diagnostico TEXT
         )
     ''')
     
