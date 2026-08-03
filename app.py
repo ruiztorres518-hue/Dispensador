@@ -7,6 +7,22 @@ app = Flask(__name__)
 DATABASE = 'diagnosticos.db'
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
+def inicializar_bd():
+    conexion = sqlite3.connect('diagnosticos.db')
+    cursor = conexion.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS alumnos (
+            matricula TEXT PRIMARY KEY,
+            nombre TEXT,
+            sexo TEXT
+        )
+    ''')
+    
+    conexion.commit()
+    conexion.close()
+
+inicializar_bd()
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
