@@ -35,19 +35,20 @@ def inicializar_bd():
         )
     ''')
     
+    # Aquí agregamos 'hora TEXT' para que coincida con tu consulta
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS historial_medicamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             matricula TEXT,
             medicamento TEXT,
-            fecha TEXT
+            fecha TEXT,
+            hora TEXT
         )
     ''')
     
     conn.commit()
     conn.close()
 
-# 3. Finalmente mandamos a llamar la inicialización ahora que ya existen
 inicializar_bd()
 
 def obtener_resumen_estadisticas():
