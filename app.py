@@ -8,8 +8,10 @@ DATABASE = 'diagnosticos.db'
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
 def inicializar_bd():
-    conn = sqlite3.connect('diagnosticos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # 1. Tabla de alumnos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alumnos (
             matricula TEXT PRIMARY KEY,
@@ -17,6 +19,8 @@ def inicializar_bd():
             sexo TEXT
         )
     ''')
+    
+    # 2. Tabla de diagnósticos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS diagnosticos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,9 +30,21 @@ def inicializar_bd():
             fecha TEXT
         )
     ''')
+    
+    # 3. Tabla de historial de medicamentos (la que faltaba)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS historial_medicamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            matricula TEXT,
+            medicamento TEXT,
+            fecha TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
+# Asegúrate de que esta línea siga ejecutándose al iniciar
 inicializar_bd()
 
 def get_db_connection():
