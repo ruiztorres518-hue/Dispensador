@@ -8,16 +8,14 @@ DATABASE = 'diagnosticos.db'
 
 # ==================== FUNCIONES DE BASE DE DATOS ====================
 def get_db_connection():
-    conn = sqlite3.connect('diagnosticos.db')
+    conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
 
-# 2. Después definimos la función que crea las tablas
 def inicializar_bd():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Agregamos ultimo_diagnostico TEXT a la tabla alumnos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alumnos (
             matricula TEXT PRIMARY KEY,
@@ -32,9 +30,11 @@ def inicializar_bd():
         CREATE TABLE IF NOT EXISTS diagnosticos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             matricula TEXT,
+            fecha TEXT,
+            hora TEXT,
             sintomas TEXT,
             medicamento TEXT,
-            fecha TEXT
+            puntaje_sintomas INTEGER
         )
     ''')
     
@@ -47,10 +47,31 @@ def inicializar_bd():
             hora TEXT
         )
     ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS inventario (
+            tubo INTEGER PRIMARY KEY,
+            medicamento TEXT,
+            cantidad INTEGER
+        )
+    ''')
     
+    # Llenar inventario a 7 pastillas si está vacío
+    cursor.execute('SELECT COUNT(*) as count FROM inventario')
+    if cursor.fetchone()['count'] == 0:
+        meds = [
+            (1, 'PARACETAMOL', 7), 
+            (2, 'IBUPROFENO', 7), 
+            (3, 'HIOSCINA IBUPROFENO', 7), 
+            (4, 'ANTIHISTAMÍNICO', 7), 
+            (5, 'ANTIÁCIDO', 7)
+        ]
+        cursor.executemany('INSERT INTO inventario VALUES (?, ?, ?)', meds)
+
     conn.commit()
     conn.close()
 
+# Inicializamos la base de datos al arrancar el script (funciona en local y en Render)
 inicializar_bd()
 
 def obtener_resumen_estadisticas():
@@ -189,7 +210,7 @@ def obtener_alumnos_riesgo():
     
     return [dict(r) for r in resultados]
 
-# ==================== HTML Y ESTILOS ====================
+# ==================== HTML Y ESTILOS (DASHBOARD) ====================
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -308,16 +329,6 @@ HTML_TEMPLATE = '''
         }
         .badge-masculino { background: #2196F3; color: white; }
         .badge-femenino { background: #E91E63; color: white; }
-        .badge-riesgo {
-            background: #f44336;
-            color: white;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.6; }
-            100% { opacity: 1; }
-        }
         .btn-detail {
             padding: 5px 15px;
             border: none;
@@ -367,12 +378,6 @@ HTML_TEMPLATE = '''
         .detail-item .value { color: white; font-size: 16px; margin-top: 5px; }
         .no-results { text-align: center; padding: 40px; color: #666; }
         hr { border-color: #444; margin: 15px 0; }
-        @media (max-width: 768px) {
-            .header { flex-direction: column; text-align: center; gap: 10px; }
-            .search-form { flex-direction: column; }
-            .search-form select, .search-form input, .search-form button { width: 100%; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        }
     </style>
 </head>
 <body>
@@ -453,7 +458,6 @@ HTML_TEMPLATE = '''
             {% else %}
             <div class="no-results">
                 <p>🔍 No se encontraron resultados</p>
-                <p style="color: #888; font-size: 14px;">Prueba con otro criterio de búsqueda</p>
             </div>
             {% endif %}
         </div>
@@ -472,53 +476,34 @@ HTML_TEMPLATE = '''
             fetch(`/alumno/${matricula}`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.error) {
-                        document.getElementById('modalBody').innerHTML = `<p>Error: ${data.error}</p>`;
+                    let html = `
+                        <div class="detail-item"><div class="label">Matrícula</div><div class="value"><strong>${data.alumno.matricula}</strong></div></div>
+                        <div class="detail-item"><div class="label">Sexo</div><div class="value"><span class="badge badge-${data.alumno.sexo.toLowerCase()}">${data.alumno.sexo}</span></div></div>
+                        <div class="detail-item"><div class="label">Fecha de Registro</div><div class="value">${data.alumno.fecha_registro}</div></div>
+                        <div class="detail-item"><div class="label">Último Diagnóstico</div><div class="value">${data.alumno.ultimo_diagnostico || 'Sin diagnóstico'}</div></div>
+                        <hr><h3 style="color: #667eea; margin-bottom: 10px;">📋 Historial de Diagnósticos</h3>
+                    `;
+                    if (data.diagnosticos && data.diagnosticos.length > 0) {
+                        data.diagnosticos.forEach(d => {
+                            html += `<div class="detail-item"><div class="label">${d.fecha} ${d.hora}</div><div class="value">${d.sintomas}</div><div style="color: #888; font-size: 13px;">💊 ${d.medicamento || 'Sin medicamento'}</div></div>`;
+                        });
                     } else {
-                        let html = `
-                            <div class="detail-item"><div class="label">Matrícula</div><div class="value"><strong>${data.alumno.matricula}</strong></div></div>
-                            <div class="detail-item"><div class="label">Sexo</div><div class="value"><span class="badge badge-${data.alumno.sexo.toLowerCase()}">${data.alumno.sexo}</span></div></div>
-                            <div class="detail-item"><div class="label">Fecha de Registro</div><div class="value">${data.alumno.fecha_registro}</div></div>
-                            <div class="detail-item"><div class="label">Último Diagnóstico</div><div class="value">${data.alumno.ultimo_diagnostico || 'Sin diagnóstico'}</div></div>
-                            <hr><h3 style="color: #667eea; margin-bottom: 10px;">📋 Historial de Diagnósticos</h3>
-                        `;
-                        if (data.diagnosticos && data.diagnosticos.length > 0) {
-                            data.diagnosticos.forEach(d => {
-                                html += `<div class="detail-item"><div class="label">${d.fecha} ${d.hora}</div><div class="value">${d.sintomas}</div><div style="color: #888; font-size: 13px;">💊 ${d.medicamento || 'Sin medicamento'}</div></div>`;
-                            });
-                        } else {
-                            html += `<p style="color: #888;">No hay diagnósticos registrados</p>`;
-                        }
-                        if (data.medicamentos && data.medicamentos.length > 0) {
-                            html += `<hr><h3 style="color: #667eea; margin-bottom: 10px;">💊 Medicamentos (últimas 24h)</h3>`;
-                            data.medicamentos.forEach(m => {
-                                html += `<div class="detail-item"><div class="label">${m.fecha} ${m.hora}</div><div class="value">${m.medicamento}</div></div>`;
-                            });
-                        }
-                        document.getElementById('modalBody').innerHTML = html;
+                        html += `<p style="color: #888;">No hay diagnósticos registrados</p>`;
                     }
+                    document.getElementById('modalBody').innerHTML = html;
                     document.getElementById('modalTitle').textContent = `Detalle - ${matricula}`;
                     document.getElementById('modalDetalle').classList.add('active');
-                })
-                .catch(error => {
-                    document.getElementById('modalBody').innerHTML = `<p>Error al cargar los datos</p>`;
                 });
         }
         function cerrarModal() {
             document.getElementById('modalDetalle').classList.remove('active');
         }
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') cerrarModal();
-        });
-        document.getElementById('modalDetalle').addEventListener('click', function(e) {
-            if (e.target === this) cerrarModal();
-        });
     </script>
 </body>
 </html>
 '''
 
-# ==================== RUTAS FLASK ====================
+# ==================== RUTAS WEB DASHBOARD ====================
 
 @app.route('/')
 def index():
@@ -546,7 +531,6 @@ def index():
 def detalle_alumno(matricula):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     cursor.execute('SELECT * FROM alumnos WHERE matricula = ?', (matricula,))
     alumno = cursor.fetchone()
     
@@ -556,7 +540,6 @@ def detalle_alumno(matricula):
     
     diagnosticos = obtener_diagnosticos_alumno(matricula, 20)
     medicamentos = obtener_historial_medicamentos(matricula, 24)
-    
     conn.close()
     
     return jsonify({
@@ -577,117 +560,91 @@ def api_alumnos_riesgo():
     alumnos = obtener_alumnos_riesgo()
     return jsonify(alumnos)
 
+
+# ==================== API PARA LA PANTALLA ESP32 (¡AHORA SÍ FUNCIONAN EN RENDER!) ====================
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json
+    matricula = data.get('matricula')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 1. Validar el bloqueo de 8 horas
+    cursor.execute('''
+        SELECT fecha, hora FROM historial_medicamentos 
+        WHERE matricula = ? 
+        ORDER BY fecha DESC, hora DESC LIMIT 1
+    ''', (matricula,))
+    ultimo = cursor.fetchone()
+    
+    if ultimo:
+        ultima_fecha = datetime.strptime(f"{ultimo['fecha']} {ultimo['hora']}", "%Y-%m-%d %H:%M:%S")
+        tiempo_pasado = datetime.now() - ultima_fecha
+        if tiempo_pasado < timedelta(hours=8):
+            horas_restantes = 8 - int(tiempo_pasado.total_seconds() // 3600)
+            conn.close()
+            return jsonify({"autorizado": False, "mensaje": f"Ya recibiste medicamento. Espera {horas_restantes} horas."})
+            
+    # 2. Verificar si el usuario ya usó el sistema antes
+    cursor.execute('SELECT sexo FROM alumnos WHERE matricula = ?', (matricula,))
+    alumno = cursor.fetchone()
+    conn.close()
+    
+    if alumno:
+        return jsonify({"autorizado": True, "sexo": alumno['sexo'], "es_nuevo": False})
+    else:
+        return jsonify({"autorizado": True, "sexo": "", "es_nuevo": True})
+
+@app.route('/api/diagnostico', methods=['POST'])
+def api_diagnostico():
+    data = request.json
+    matricula = data.get('matricula')
+    sexo = data.get('sexo')
+    sintomas = data.get('sintomas')
+    medicamento = data.get('medicamento')
+    temp = data.get('temperatura', 0)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    hora = datetime.now().strftime("%H:%M:%S")
+    
+    # Registrar al usuario si era la primera vez
+    cursor.execute('INSERT OR IGNORE INTO alumnos (matricula, sexo, fecha_registro) VALUES (?, ?, ?)', 
+                    (matricula, sexo, f"{fecha} {hora}"))
+    
+    # Guardar diagnóstico
+    sintomas_final = f"{sintomas} (Temp: {temp}°C)"
+    cursor.execute('INSERT INTO diagnosticos (matricula, fecha, hora, sintomas, medicamento) VALUES (?, ?, ?, ?, ?)',
+                    (matricula, fecha, hora, sintomas_final, medicamento))
+                    
+    if medicamento:
+        # Registrar en el historial para activar el bloqueo de 8 horas
+        cursor.execute('INSERT INTO historial_medicamentos (matricula, medicamento, fecha, hora) VALUES (?, ?, ?, ?)',
+                        (matricula, medicamento, fecha, hora))
+                        
+        # Restar del inventario
+        cursor.execute('UPDATE inventario SET cantidad = cantidad - 1 WHERE medicamento = ? AND cantidad > 0', (medicamento,))
+        cursor.execute('SELECT tubo, cantidad FROM inventario WHERE medicamento = ?', (medicamento,))
+        inv = cursor.fetchone()
+        if inv and inv['cantidad'] <= 2:
+            print(f"\n⚠️ AVISO: Quedan {inv['cantidad']} pastillas de {medicamento}. Reponer en tubo {inv['tubo']}.\n")
+            
+    conn.commit()
+    conn.close()
+    return jsonify({"exito": True})
+
+
 # ==================== INICIO DEL SERVIDOR ====================
 
 if __name__ == '__main__':
-
-        # ==================== API PARA LA PANTALLA ESP32 ====================
-
-    def inicializar_inventario():
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-        
-            CREATE TABLE IF NOT EXISTS inventario (
-                tubo INTEGER PRIMARY KEY,
-                medicamento TEXT,
-                cantidad INTEGER
-            )
-        ''')
-        # Llenar inventario a 7 pastillas si está vacío
-        cursor.execute('SELECT COUNT(*) as count FROM inventario')
-        if cursor.fetchone()['count'] == 0:
-            meds = [(1, 'PARACETAMOL', 7), (2, 'IBUPROFENO', 7), (3, 'HIOSCINA IBUPROFENO', 7), 
-                    (4, 'ANTIHISTAMÍNICO', 7), (5, 'ANTIÁCIDO', 7)]
-            cursor.executemany('INSERT INTO inventario VALUES (?, ?, ?)', meds)
-        conn.commit()
-        conn.close()
-
-    # Ejecutamos la función al arrancar el servidor
-    inicializar_inventario()
-
-    @app.route('/api/login', methods=['POST'])
-    def api_login():
-        data = request.json
-        matricula = data.get('matricula')
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # 1. Validar el bloqueo de 8 horas (La memoria es eterna aquí)
-        cursor.execute('''
-            SELECT fecha, hora FROM historial_medicamentos 
-            WHERE matricula = ? 
-            ORDER BY fecha DESC, hora DESC LIMIT 1
-        ''', (matricula,))
-        ultimo = cursor.fetchone()
-        
-        if ultimo:
-            ultima_fecha = datetime.strptime(f"{ultimo['fecha']} {ultimo['hora']}", "%Y-%m-%d %H:%M:%S")
-            tiempo_pasado = datetime.now() - ultima_fecha
-            if tiempo_pasado < timedelta(hours=8):
-                horas_restantes = 8 - int(tiempo_pasado.total_seconds() // 3600)
-                conn.close()
-                return jsonify({"autorizado": False, "mensaje": f"Ya recibiste medicamento. Espera {horas_restantes} horas."})
-                
-        # 2. Verificar si el usuario ya usó el sistema antes (para omitir pregunta de sexo)
-        cursor.execute('SELECT sexo FROM alumnos WHERE matricula = ?', (matricula,))
-        alumno = cursor.fetchone()
-        conn.close()
-        
-        if alumno:
-            return jsonify({"autorizado": True, "sexo": alumno['sexo'], "es_nuevo": False})
-        else:
-            return jsonify({"autorizado": True, "sexo": "", "es_nuevo": True})
-
-    @app.route('/api/diagnostico', methods=['POST'])
-    def api_diagnostico():
-        data = request.json
-        matricula = data.get('matricula')
-        sexo = data.get('sexo')
-        sintomas = data.get('sintomas')
-        medicamento = data.get('medicamento')
-        temp = data.get('temperatura')
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        hora = datetime.now().strftime("%H:%M:%S")
-        
-        # Registrar al usuario si era la primera vez
-        cursor.execute('INSERT OR IGNORE INTO alumnos (matricula, sexo, fecha_registro) VALUES (?, ?, ?)', 
-                    (matricula, sexo, f"{fecha} {hora}"))
-        
-        # Guardar diagnóstico incluyendo la temperatura del sensor
-        sintomas_final = f"{sintomas} (Temp: {temp}°C)"
-        cursor.execute('INSERT INTO diagnosticos (matricula, fecha, hora, sintomas, medicamento) VALUES (?, ?, ?, ?, ?)',
-                    (matricula, fecha, hora, sintomas_final, medicamento))
-                    
-        if medicamento:
-            # Registrar en el historial para activar el bloqueo de 8 horas
-            cursor.execute('INSERT INTO historial_medicamentos (matricula, medicamento, fecha, hora) VALUES (?, ?, ?, ?)',
-                        (matricula, medicamento, fecha, hora))
-                        
-            # Restar del inventario y alertar en consola si quedan 2 o menos
-            cursor.execute('UPDATE inventario SET cantidad = cantidad - 1 WHERE medicamento = ? AND cantidad > 0', (medicamento,))
-            cursor.execute('SELECT tubo, cantidad FROM inventario WHERE medicamento = ?', (medicamento,))
-            inv = cursor.fetchone()
-            if inv and inv['cantidad'] <= 2:
-                print(f"\n{'='*60}\n⚠️ AVISO: Quedan {inv['cantidad']} pastillas de {medicamento}. Reponer en tubo {inv['tubo']}.\n{'='*60}\n")
-                
-        conn.commit()
-        conn.close()
-        return jsonify({"exito": True})
-
     print("=" * 60)
     print("🏥 SERVIDOR MÉDICO - DISPENSADOR UNIVERSITARIO")
     print("=" * 60)
     print(f"📂 Base de datos: {DATABASE}")
     print("🌐 Servidor iniciado en: http://localhost:5000")
-    print("📊 Acceso para personal médico")
     print("=" * 60)
-    print("⚠️  Presiona Ctrl+C para detener el servidor")
-    print("=" * 60)
-    
     app.run(debug=True, host='0.0.0.0', port=5000)
