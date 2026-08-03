@@ -17,11 +17,13 @@ def inicializar_bd():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Agregamos fecha_registro TEXT a la tabla alumnos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alumnos (
             matricula TEXT PRIMARY KEY,
             nombre TEXT,
-            sexo TEXT
+            sexo TEXT,
+            fecha_registro TEXT
         )
     ''')
     
@@ -35,7 +37,6 @@ def inicializar_bd():
         )
     ''')
     
-    # Aquí agregamos 'hora TEXT' para que coincida con tu consulta
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS historial_medicamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
